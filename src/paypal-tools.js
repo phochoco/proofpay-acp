@@ -135,10 +135,10 @@ export async function verifyHold({ evaluatorName, orderId, total }) {
  * Supplier agent: once paid, it issues a PayPal invoice for the job and records the payment on it,
  * so the buyer's books get a proper invoice instead of a bare transfer.
  */
-export async function invoiceForJob({ supplierName, payerEmail, item, quantity, unitPrice, total, captureId }) {
+export async function invoiceForJob({ supplierName, payerEmail, item, quantity, unitPrice, total, captureId, force = false }) {
   // Off by default: the sandbox app returned 403 on invoice creation even with Invoicing enabled.
   // Set TOOLKIT_INVOICES=on once the app's invoicing permission is active.
-  if (!toolkitTools || env('TOOLKIT_INVOICES') !== 'on') return null;
+  if (!toolkitTools || (env('TOOLKIT_INVOICES') !== 'on' && !force)) return null;
   if (!payerEmail) { console.warn('[paypal-tools] invoiceForJob: no payer email from PayPal, skipping'); return null; }
   const today = new Date().toISOString().slice(0, 10);
   try {
