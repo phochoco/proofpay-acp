@@ -277,7 +277,7 @@ export function supplierDeliver(s, job) {
  * model reads everything, including the supplier's free-text note, and can veto. Either layer
  * failing blocks the payout; the model can never approve past a failed hard check.
  */
-export async function evaluate(job, seenEvidence) {
+export async function evaluate(job, seenEvidence, paypalHold = null) {
   const a = job.agreed;
   const e = job.evidence;
   const checks = [
@@ -289,6 +289,10 @@ export async function evaluate(job, seenEvidence) {
     { name: 'lead_time_days', expected: `<= ${a.leadDays}`, actual: String(e.shippedOnDay), pass: e.shippedOnDay <= a.leadDays },
     { name: 'evidence_is_original', expected: 'not seen on another job', actual: seenEvidence.has(e.labelSha256) ? 'reused' : 'new',
       pass: !seenEvidence.has(e.labelSha256) },
+    // Checked on PayPal by the evaluator agent through the PayPal Agent Toolkit (get_order).
+    ...(paypalHold ? [{ name: 'paypal_hold', expected: `held ${a.total.toFixed(2)} USD`,
+      actual: `${paypalHold.status === 'CREATED' || paypalHold.status === 'AUTHORIZED' ? 'held' : paypalHold.status.toLowerCase()} ${Number.isFinite(paypalHold.amount) ? paypalHold.amount.toFixed(2) : '?'} USD`,
+      pass: paypalHold.pass }] : []),
   ];
   const hardPass = checks.every((c) => c.pass);
   const failed = checks.filter((c) => !c.pass).map((c) => `${c.name} (agreed ${c.expected}, delivered ${c.actual})`);

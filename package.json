@@ -4,9 +4,15 @@
   "description": "Agent-to-agent procurement where PayPal only releases money after an evaluator agent verifies delivery.",
   "type": "module",
   "license": "MIT",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/server.js",
     "demo": "node scripts/demo.js"
+  },
+  "dependencies": {
+    "@paypal/agent-toolkit": "1.11.0",
+    "zod-to-json-schema": "^3.24.5"
   }
 }

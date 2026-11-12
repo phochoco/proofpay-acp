@@ -163,7 +163,7 @@
   .talk .from span { display: block; font-weight: 400; font-size: 13px; color: var(--soft); font-stretch: 100%; }
   .talk p { margin: 0; }
   .tag { font-size: 13px; color: var(--soft); }
-  .talk li.paypal { background: var(--canary-wash); }
+  .talk li.paypal, .talk li.tk { background: var(--canary-wash); }
   .talk li.evaluator, .talk li.policy { box-shadow: inset 6px 0 0 var(--ink); }
   .chain { margin: 10px 0 0; font-size: 13px; color: var(--soft); overflow-wrap: anywhere; }
   .empty { padding: 26px 18px; text-align: center; color: var(--soft); display: block; }
@@ -377,7 +377,8 @@ const WORKING = {
   SUBCONTRACT: 'Your money is held. The supplier is delivering', DELIVERY: 'An evaluator agent is checking the delivery',
   VERDICT_APPROVE: 'Delivery passed. Releasing the payment', VERDICT_REJECT: 'Delivery failed. Releasing your hold',
   REFUND_VOID: 'Hold released. Trying the most trusted supplier left', FEE: 'Settling with PayPal', SETTLEMENT: 'Supplier paid. Wrapping up',
-  COMMISSION: 'Supplier paid. Wrapping up', OWN_DECISION: 'Supplier agents are deciding how to bid next time',
+  COMMISSION: 'Supplier paid. Wrapping up', TOOL_CHECK: 'The evaluator confirmed the hold on PayPal. Checking the delivery',
+  INVOICE: 'The supplier agent issued a PayPal invoice', OWN_DECISION: 'Supplier agents are deciding how to bid next time',
 };
 const TOKEN = {
   AWAITING_BUYER_APPROVAL: [0, 'pending', 'waiting for you'], AUTHORIZED: [1, 'held', 'held, not paid'],
@@ -426,7 +427,8 @@ function render(s) {
   state = s;
   const name = names(s), run = s.run, mock = s.mode.paypal !== 'sandbox';
   $('modes').innerHTML = (mock ? 'Mock payments, no PayPal credentials set' : '<b>PayPal sandbox</b> connected') + '<br>'
-    + (s.mode.llm.provider === 'scripted' ? 'Scripted agents, no AI key set' : `Agents run on <b>${esc(s.mode.llm.model)}</b>`);
+    + (s.mode.llm.provider === 'scripted' ? 'Scripted agents, no AI key set' : `Agents run on <b>${esc(s.mode.llm.model)}</b>`)
+    + (s.mode.toolkit ? '<br>Agents use the <b>PayPal Agent Toolkit</b>' : '');
   $('netcount').textContent = `${s.agents.length} agents`;
   const waiting = run && run.jobs.find((j) => j.escrow && j.escrow.status === 'AWAITING_BUYER_APPROVAL' && j.escrow.approveUrl);
   $('ping').hidden = !(waiting && view !== 'order');
@@ -536,7 +538,8 @@ function renderRail(s, name) {
     const head = { CAPTURED: 'Paid to the supplier', VOIDED: 'Released back to you, never charged', AUTHORIZED: j.phase === 'EVALUATION' ? 'Held while the delivery is checked' : 'Held while the supplier delivers',
       AWAITING_BUYER_APPROVAL: 'Waiting for your approval', NOT_APPROVED: 'You did not approve the hold' }[e.status] || e.status;
     const ids = [`order ${e.orderId}`, e.authorizationId && `authorization ${e.authorizationId}`, e.captureId && `capture ${e.captureId}`].filter(Boolean).join(', ');
-    const html = `<b>${esc(head)}</b>${j.subcontract ? `Hired ${esc(name[j.subcontract.partner].name)} for the labels with its own money. ` : ''}<div class="ids">PayPal ${esc(ids)}</div>`;
+    const inv = j.invoice ? `<div>Invoice ${esc(j.invoice.invoiceId)} issued by the supplier agent${j.invoice.recorded ? ', marked paid' : ''}.</div>` : '';
+    const html = `<b>${esc(head)}</b>${inv}${j.subcontract ? `Hired ${esc(name[j.subcontract.partner].name)} for the labels with its own money. ` : ''}<div class="ids">PayPal ${esc(ids)}</div>`;
     if (L.res.dataset.html !== html) { L.res.dataset.html = html; L.res.innerHTML = html; }
   }
 }
@@ -572,8 +575,8 @@ function renderTalk(s, name) {
   if (!s.ledger.length) { list.innerHTML = '<li class="empty">Send the agents and their negotiation appears here, message by message.</li>'; $('chain').textContent = ''; return; }
   list.innerHTML = s.ledger.map((m) => {
     const from = name[m.from] || { name: m.from, role: '' }, to = name[m.to] || { name: m.to };
-    const tag = m.source === 'llm' ? 'Written by AI' : m.source === 'scripted' ? 'Scripted' : 'Automatic';
-    return `<li class="${esc(from.role)}"><div class="from">${esc(from.name)}<span>to ${esc(to.name)}</span></div><div><p>${esc(m.content)}</p><span class="tag">Memo ${m.seq}. ${tag}.</span></div></li>`;
+    const tag = (m.source === 'llm' ? 'Written by AI' : m.source === 'scripted' ? 'Scripted' : 'Automatic') + (m.data?.toolkit ? ', using the PayPal Agent Toolkit' : '');
+    return `<li class="${esc(from.role)}${m.data?.toolkit ? ' tk' : ''}"><div class="from">${esc(from.name)}<span>to ${esc(to.name)}</span></div><div><p>${esc(m.content)}</p><span class="tag">Memo ${m.seq}. ${tag}.</span></div></li>`;
   }).join('');
   list.scrollTop = list.scrollHeight;
   $('chain').textContent = `Each message is hashed together with the one before it, so the record cannot be quietly edited. Chain ${s.ledgerValid ? 'verified' : 'BROKEN'}. Latest hash ${s.ledger.at(-1).hash}`;

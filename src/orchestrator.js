@@ -2,6 +2,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Ledger, Registry, Job, EVALUATION_FEE, BUYER_COMMISSION } from './acp.js';
+import { toolsActive, verifyHold, invoiceForJob } from './paypal-tools.js';
 import { llmInfo } from './llm.js';
 import {
   BUYER, EVALUATORS, OTHER_BUYERS, SUPPLIERS, parseRequest, rfqMessage, buyerCounter, buyerAwardNote,
@@ -125,7 +126,7 @@ export class Orchestrator {
 
   snapshot() {
     return {
-      mode: { paypal: this.paypal.mode, llm: llmInfo },
+      mode: { paypal: this.paypal.mode, llm: llmInfo, toolkit: toolsActive() },
       policy: { maxOrderUsd: this.maxOrderUsd, humanApprovalRequired: true },
       busy: this.busy,
       agents: this.registry.view().map((a) => ({ ...a, stance: this.pricing[a.id] || null })),
@@ -345,7 +346,16 @@ export class Orchestrator {
     job.memo({ from: s.id, to: job.evaluator, type: 'DELIVERY', content: job.evidence.note, data: { packingList: job.evidence.packingList, labelSha256: job.evidence.labelSha256 }, next: 'EVALUATION' });
     await this.step();
 
-    job.verdict = await evaluate(job, this.seenEvidence);
+    // The evaluator agent confirms on PayPal, through PayPal's Agent Toolkit, that the money is really held.
+    const hold = await verifyHold({ evaluatorName: this.registry.get(job.evaluator).name, orderId: order.orderId, total });
+    if (hold) {
+      job.paypalCheck = hold;
+      job.memo({ from: job.evaluator, to: 'paypal', type: 'TOOL_CHECK', content: `Checked order ${order.orderId} on PayPal with the Agent Toolkit get_order tool. ${hold.note}`,
+        data: { toolkit: true, status: hold.status, amount: hold.amount }, source: hold.source });
+      await this.step();
+    }
+
+    job.verdict = await evaluate(job, this.seenEvidence, hold);
     this.seenEvidence.add(job.evidence.labelSha256);
     job.memo({ from: job.evaluator, to: BUYER.id, type: job.verdict.approve ? 'VERDICT_APPROVE' : 'VERDICT_REJECT', content: job.verdict.reasoning, data: { checks: job.verdict.checks }, source: job.verdict.source });
     await this.step();
@@ -366,6 +376,15 @@ export class Orchestrator {
       Object.assign(job.escrow, { status: 'CAPTURED', captureId: cap.captureId, captureStatus: cap.status });
       job.memo({ from: 'paypal', to: s.id, type: 'SETTLEMENT', content: `Captured ${usd(total)} (capture ${cap.captureId}, ${cap.status}). Supplier paid.`, data: { captureId: cap.captureId }, next: 'COMPLETED' });
       this.settle({ buyer: BUYER.id, supplier: s.id, evaluator: job.evaluator, amount: total, passed: true, sim: false });
+      await this.step();
+      // The paid supplier agent issues a PayPal invoice for the job through the Agent Toolkit.
+      const inv = await invoiceForJob({ supplierName: s.name, payerEmail: hold?.payerEmail, item: terms.item, quantity: terms.quantity,
+        unitPrice: job.agreed.unitPrice, total, captureId: cap.captureId });
+      if (inv?.ok) {
+        job.invoice = inv;
+        job.memo({ from: s.id, to: BUYER.id, type: 'INVOICE', content: `Issued PayPal invoice ${inv.invoiceId} with the Agent Toolkit${inv.recorded ? ' and marked it paid' : ''}. ${inv.note}`.trim(),
+          data: { toolkit: true, invoiceId: inv.invoiceId }, source: 'llm' });
+      }
       // The buyer agent earns a share of what it saved its owner against the price limit.
       const saved = money((terms.maxUnitPrice - job.agreed.unitPrice) * terms.quantity);
       const commission = money(saved * BUYER_COMMISSION);

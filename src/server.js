@@ -5,6 +5,10 @@ import { env, ROOT } from './env.js';
 import { createPayPal } from './paypal.js';
 import { Orchestrator } from './orchestrator.js';
 import { llmInfo } from './llm.js';
+import { initPayPalTools } from './paypal-tools.js';
+
+const toolkitOn = paypalToolsReady();
+async function paypalToolsReady() { return initPayPalTools(); }
 
 const PORT = Number(env('PORT', '3000'));
 // On Render the public address is provided as RENDER_EXTERNAL_URL; PayPal sends the buyer back there.
@@ -129,4 +133,5 @@ server.listen(PORT, () => {
   console.log(`ProofPay ACP  ->  ${BASE_URL}`);
   console.log(`  PayPal : ${paypal.mode === 'sandbox' ? 'SANDBOX (api-m.sandbox.paypal.com)' : 'MOCK (set PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET for sandbox)'}`);
   console.log(`  Agents : ${llmInfo.provider === 'scripted' ? 'SCRIPTED (set ANTHROPIC_API_KEY or OPENAI_API_KEY for AI agents)' : `${llmInfo.provider} / ${llmInfo.model}`}`);
+  toolkitOn.then((on) => console.log(`  Toolkit: ${on ? 'PayPal Agent Toolkit tools active (get_order, create_invoice, record_payment_for_invoice)' : 'off (needs PayPal sandbox + Anthropic key)'}`));
 });
