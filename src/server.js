@@ -45,12 +45,12 @@ const readBody = (req) => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}); } catch (e) { reject(e); } });
 });
 const page = (title, body) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
-<style>@font-face{font-family:Archivo;src:url(/fonts/archivo.woff2) format("woff2-variations");font-weight:100 900;font-stretch:62% 125%}
-body{font:16px/1.5 Archivo,Arial,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#e9edf5;color:#1f1d4d}
-main{max-width:440px;margin:20px;padding:28px;background:#fff;border:2px solid #1f1d4d;border-radius:4px}
-h2{font-size:28px;line-height:1.1;font-weight:750;font-stretch:70%;margin:0 0 10px}
-a.act{display:inline-block;padding:11px 20px;background:#1f1d4d;color:#fff;border-radius:4px;text-decoration:none;font-weight:700}
-.flag{display:inline-block;background:#ffe45c;padding:2px 8px;font-size:13px;font-weight:650;margin:0 0 12px}</style>
+<style>@font-face{font-family:Jakarta;src:url(/fonts/jakarta.woff2) format("woff2-variations");font-weight:200 800}
+body{font:16px/1.55 Jakarta,Arial,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#f3f5f9;color:#0b1a3a}
+main{max-width:440px;margin:20px;padding:30px;background:#fff;border:1px solid #dde3ee;border-radius:20px}
+h2{font-size:24px;line-height:1.2;font-weight:750;letter-spacing:-.02em;margin:0 0 10px}
+a.act{display:inline-block;padding:13px 26px;background:#001c64;color:#fff;border-radius:999px;text-decoration:none;font-weight:750}
+.flag{display:inline-block;background:#fff4c7;color:#6b5200;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:700;margin:0 0 12px}</style>
 <body><main>${body}</main></body>`;
 const backToApp = '<script>setTimeout(function(){ if (window.opener) window.close(); else location.href = "/"; }, 1200)</script>';
 

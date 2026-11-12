@@ -233,11 +233,11 @@ function labelSvg(name, item, quantity, spec, jobId) {
   const lines = [`QTY  ${quantity}`, ...Object.entries(spec).map(([k, v]) => `${k.toUpperCase()}  ${v}`)];
   const rows = lines.map((l, i) => `<text x="20" y="${96 + i * 24}" font-size="15">${xml(l)}</text>`).join('');
   const h = 112 + lines.length * 24;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="${h}" viewBox="0 0 360 ${h}" font-family="monospace" fill="#1f1d4d">`
-    + `<rect width="360" height="${h}" fill="#ffffff" stroke="#1f1d4d" stroke-width="3"/>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="${h}" viewBox="0 0 360 ${h}" font-family="monospace" fill="#001c64">`
+    + `<rect width="360" height="${h}" fill="#ffffff" stroke="#001c64" stroke-width="3"/>`
     + `<text x="20" y="32" font-size="17" font-weight="bold">${xml(name)}</text>`
-    + `<text x="20" y="56" font-size="13">${xml(item)}</text><line x1="20" y1="68" x2="340" y2="68" stroke="#1f1d4d"/>`
-    + `${rows}<text x="20" y="${h - 12}" font-size="10" fill="#5d5b88">PACKING LABEL ${xml(jobId)}</text></svg>`;
+    + `<text x="20" y="56" font-size="13">${xml(item)}</text><line x1="20" y1="68" x2="340" y2="68" stroke="#001c64"/>`
+    + `${rows}<text x="20" y="${h - 12}" font-size="10" fill="#5a6884">PACKING LABEL ${xml(jobId)}</text></svg>`;
 }
 
 /**
