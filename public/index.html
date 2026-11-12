@@ -706,7 +706,7 @@ function renderNet(s, name) {
   const items = [...s.activity].reverse().slice(0, 8), top = items[0]?.ts || 0;
   $('feed').innerHTML = items.length ? items.map((e, i) => {
     const b = esc(name[e.buyer]?.name), sup = esc(name[e.supplier]?.name), ev = esc(name[e.evaluator]?.name);
-    const text = e.kind === 'ad' ? `${sup} paid the network ${usd(e.amount)} for a sponsored slot in your order.`
+    const text = e.kind === 'ad' ? `${sup} paid the network ${usd(e.amount)} for a sponsored slot in ${e.sim ? 'another buyer’s request' : 'your order'}.`
       : e.kind === 'sub' ? `${b} hired ${sup} for part of a job and paid ${usd(e.amount)} from its own balance.`
       : e.passed ? `${b} paid ${sup} ${usd(e.amount)} after ${ev} approved the delivery.`
       : `${b} got ${usd(e.amount)} back. ${ev} <span class="no">rejected</span> the delivery from ${sup}.`;

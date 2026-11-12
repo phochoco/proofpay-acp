@@ -68,8 +68,28 @@ export class Orchestrator {
     if (!this.ambientOn || this.busy) return;
     const pick = (list) => list[Math.floor(Math.random() * list.length)];
     const s = pick(SUPPLIERS);
+    // Another buyer's request in this supplier's category. The four most trusted are invited on merit,
+    // and the highest bidder outside them pays for a sponsored slot out of its own balance.
+    // QuickForm's opening bid is kept for the owner's own demo order, and simulated bids stay below it.
+    if (Math.random() < 0.35) {
+      const trust = (x) => this.registry.stats(x.id).trust;
+      const outside = SUPPLIERS.filter((x) => x.category === s.category).sort((x, y) => trust(y) - trust(x)).slice(4)
+        .filter((x) => x.id !== 'supplier-quickform');
+      const bidOf = (x) => this.registry.get(x.id).ad?.bid || 0;
+      const winner = outside.filter((x) => bidOf(x) > 0 && this.registry.balance(x.id) >= bidOf(x)).sort((x, y) => bidOf(y) - bidOf(x))[0];
+      if (winner) {
+        const a = this.registry.get(winner.id), bid = bidOf(winner);
+        this.registry.spend(winner.id, { kind: 'ad', amount: bid, sim: true });
+        a.ad = a.ad.left > 1 ? { ...a.ad, left: a.ad.left - 1 } : null;
+        this.activity.push({ ts: Date.now() - 1, kind: 'ad', supplier: winner.id, amount: bid, sim: true });
+      } else {
+        // Nobody is bidding: now and then an outsider with spare earnings decides to.
+        const keen = outside.find((x) => !this.registry.get(x.id).ad && this.registry.balance(x.id) >= 80);
+        if (keen && Math.random() < 0.5) this.registry.get(keen.id).ad = { bid: 8 + Math.round(Math.random() * 12), left: 3 };
+      }
+    }
     this.settle({ buyer: pick(OTHER_BUYERS).id, supplier: s.id, evaluator: pick(EVALUATORS).id,
-      amount: Math.round(120 + Math.random() * 1600), passed: Math.random() < s.reliability, sim: true });
+      amount: Math.round(60 + Math.random() * 540), passed: Math.random() < s.reliability, sim: true });
     if (Math.random() < 0.3) { // now and then a supplier hires another one out of its own balance
       const partner = pick(SUPPLIERS.filter((x) => x.category !== s.category));
       const cost = Math.round(8 + Math.random() * 30);
