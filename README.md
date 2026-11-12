@@ -120,8 +120,10 @@ task-specific set of toolkit tools and decides which to call:
   delivery table (`paypal hold`), computed from PayPal's response rather than the model's summary.
 - **Supplier agent, `create_invoice` + `record_payment_for_invoice`.** Once paid, the supplier agent
   issues a PayPal invoice for the job and marks it paid, so the buyer's books get a real invoice.
-  This is implemented but off by default (`TOOLKIT_INVOICES=on`): in our sandbox app PayPal still
-  answered `403 insufficient permissions` after Invoicing was enabled.
+  For a while after Invoicing was enabled on our sandbox app, PayPal answered `403` because the new
+  permission had not reached the app's tokens yet. It works now (for example invoice
+  `INV2-KDZD-97HD-MYJT-4H3S`, issued and marked paid for capture `7KN7045255373994W`). Set
+  `TOOLKIT_INVOICES=off` to skip this step.
 
 The escrow itself stays on direct REST calls: the toolkit has no authorize or void tool, and money
 movement should not depend on a model's choice.

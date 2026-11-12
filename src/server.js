@@ -5,7 +5,7 @@ import { env, ROOT } from './env.js';
 import { createPayPal } from './paypal.js';
 import { Orchestrator } from './orchestrator.js';
 import { llmInfo } from './llm.js';
-import { initPayPalTools, invoiceForJob } from './paypal-tools.js';
+import { initPayPalTools } from './paypal-tools.js';
 
 const toolkitOn = paypalToolsReady();
 async function paypalToolsReady() { return initPayPalTools(); }
@@ -61,14 +61,6 @@ const server = http.createServer(async (req, res) => {
     if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/health') {
       res.writeHead(200, { 'content-type': 'text/plain' });
       return res.end(req.method === 'HEAD' ? undefined : 'ok');
-    }
-    if (req.method === 'GET' && url.pathname === '/debug/invoice-test' && url.searchParams.get('k') === 'pp-7f3q9' && paypal.mode === 'sandbox') { // temporary
-      const auth = Buffer.from(`${env('PAYPAL_CLIENT_ID')}:${env('PAYPAL_CLIENT_SECRET')}`).toString('base64');
-      const t = await fetch('https://api-m.sandbox.paypal.com/v1/oauth2/token', { method: 'POST', headers: { authorization: `Basic ${auth}`, 'content-type': 'application/x-www-form-urlencoded' }, body: 'grant_type=client_credentials' }).then((r) => r.json());
-      const order = await fetch('https://api-m.sandbox.paypal.com/v2/checkout/orders/9W737255G4856832U', { headers: { authorization: `Bearer ${t.access_token}` } }).then((r) => r.json());
-      const payerEmail = order?.payer?.email_address || null;
-      const inv = await invoiceForJob({ supplierName: 'Hanbit Paper Co.', payerEmail, item: 'NCR carbonless receipt book', quantity: 500, unitPrice: 1.72, total: 860, captureId: '7KN7045255373994W', force: true });
-      return send(res, 200, { payerEmailFound: Boolean(payerEmail), inv });
     }
     if (req.method === 'GET' && url.pathname === '/') return send(res, 200, readFileSync(join(ROOT, 'public/index.html'), 'utf8'), 'text/html');
     if (url.pathname === '/favicon.ico') { res.writeHead(204); return res.end(); }
