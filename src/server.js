@@ -8,7 +8,7 @@ import { llmInfo } from './llm.js';
 
 const PORT = Number(env('PORT', '3000'));
 // On Render the public address is provided as RENDER_EXTERNAL_URL; PayPal sends the buyer back there.
-const BASE_URL = env('BASE_URL') || env('RENDER_EXTERNAL_URL') || `http://localhost:${PORT}`;
+const BASE_URL = env('RENDER_EXTERNAL_URL') || env('BASE_URL') || `http://localhost:${PORT}`;
 // A public demo should not let one visitor run up the AI bill: cap new orders per hour.
 const RUNS_PER_HOUR = Number(env('RUNS_PER_HOUR', '30'));
 const runTimes = [];
