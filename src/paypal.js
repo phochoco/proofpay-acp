@@ -86,7 +86,7 @@ class PayPalSandbox {
     const order = await this.req('POST', `/v2/checkout/orders/${orderId}/authorize`, {}, `auth-${orderId}`);
     const auth = order.purchase_units?.[0]?.payments?.authorizations?.[0];
     if (!auth) throw new Error('PayPal authorize returned no authorization.');
-    return { authorizationId: auth.id, status: auth.status };
+    return { authorizationId: auth.id, status: auth.status, payerEmail: order.payer?.email_address || null };
   }
 
   async capture(authorizationId, note) {

@@ -78,6 +78,7 @@ async function runAgent({ system, user, allowed, maxSteps = 5 }) {
       try { output = asObject(await toolkitTools[u.name].execute(u.input)); }
       catch (err) { ok = false; output = { error: err.message }; }
       calls.push({ tool: u.name, input: u.input, ok, output });
+      console.log(`[paypal-tools] ${u.name} ${ok ? 'ok' : 'failed'} ${JSON.stringify(ok ? Object.keys(output).slice(0, 6) : output).slice(0, 300)}`);
       results.push({ type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(output).slice(0, 6000), is_error: !ok });
     }
     messages.push({ role: 'user', content: results });
@@ -134,7 +135,8 @@ export async function verifyHold({ evaluatorName, orderId, total }) {
  * so the buyer's books get a proper invoice instead of a bare transfer.
  */
 export async function invoiceForJob({ supplierName, payerEmail, item, quantity, unitPrice, total, captureId }) {
-  if (!toolkitTools || !payerEmail) return null;
+  if (!toolkitTools) return null;
+  if (!payerEmail) { console.warn('[paypal-tools] invoiceForJob: no payer email from PayPal, skipping'); return null; }
   const today = new Date().toISOString().slice(0, 10);
   try {
     const { final, calls } = await runAgent({
@@ -150,7 +152,10 @@ export async function invoiceForJob({ supplierName, payerEmail, item, quantity, 
     const created = calls.find((c) => c.tool === 'create_invoice' && c.ok);
     const idFromCall = created && (created.output.id || created.output.href?.split('/').pop() || created.output.links?.[0]?.href?.split('/').pop());
     const invoiceId = idFromCall || final.invoice_id || null;
-    if (!invoiceId) return { ok: false, calls: calls.length, note: 'The supplier agent could not create the invoice.' };
+    if (!invoiceId) {
+      console.warn(`[paypal-tools] invoiceForJob: no invoice id after ${calls.length} calls. Last: ${JSON.stringify(calls.at(-1)?.output || final).slice(0, 400)}`);
+      return { ok: false, calls: calls.length, note: 'The supplier agent tried to issue a PayPal invoice but PayPal did not accept it.' };
+    }
     const recorded = calls.some((c) => c.tool === 'record_payment_for_invoice' && c.ok);
     return { ok: true, invoiceId, recorded, calls: calls.length, note: String(final.note || '').slice(0, 240) };
   } catch (err) {

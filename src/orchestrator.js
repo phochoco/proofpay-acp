@@ -378,12 +378,14 @@ export class Orchestrator {
       this.settle({ buyer: BUYER.id, supplier: s.id, evaluator: job.evaluator, amount: total, passed: true, sim: false });
       await this.step();
       // The paid supplier agent issues a PayPal invoice for the job through the Agent Toolkit.
-      const inv = await invoiceForJob({ supplierName: s.name, payerEmail: hold?.payerEmail, item: terms.item, quantity: terms.quantity,
+      const inv = await invoiceForJob({ supplierName: s.name, payerEmail: auth.payerEmail || hold?.payerEmail, item: terms.item, quantity: terms.quantity,
         unitPrice: job.agreed.unitPrice, total, captureId: cap.captureId });
       if (inv?.ok) {
         job.invoice = inv;
         job.memo({ from: s.id, to: BUYER.id, type: 'INVOICE', content: `Issued PayPal invoice ${inv.invoiceId} with the Agent Toolkit${inv.recorded ? ' and marked it paid' : ''}. ${inv.note}`.trim(),
           data: { toolkit: true, invoiceId: inv.invoiceId }, source: 'llm' });
+      } else if (inv) {
+        job.memo({ from: s.id, to: BUYER.id, type: 'INVOICE', content: inv.note, data: { toolkit: true }, source: 'llm' });
       }
       // The buyer agent earns a share of what it saved its owner against the price limit.
       const saved = money((terms.maxUnitPrice - job.agreed.unitPrice) * terms.quantity);
