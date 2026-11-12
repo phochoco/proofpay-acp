@@ -133,5 +133,5 @@ server.listen(PORT, () => {
   console.log(`ProofPay ACP  ->  ${BASE_URL}`);
   console.log(`  PayPal : ${paypal.mode === 'sandbox' ? 'SANDBOX (api-m.sandbox.paypal.com)' : 'MOCK (set PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET for sandbox)'}`);
   console.log(`  Agents : ${llmInfo.provider === 'scripted' ? 'SCRIPTED (set ANTHROPIC_API_KEY or OPENAI_API_KEY for AI agents)' : `${llmInfo.provider} / ${llmInfo.model}`}`);
-  toolkitOn.then((on) => console.log(`  Toolkit: ${on ? 'PayPal Agent Toolkit tools active (get_order, create_invoice, record_payment_for_invoice)' : 'off (needs PayPal sandbox + Anthropic key)'}`));
+  toolkitOn.then((on) => console.log(`  Toolkit: ${on ? `PayPal Agent Toolkit active: get_order${process.env.TOOLKIT_INVOICES === 'on' ? ', create_invoice, record_payment_for_invoice' : ''}` : 'off (needs PayPal sandbox + Anthropic key)'}`));
 });

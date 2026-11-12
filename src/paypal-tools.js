@@ -136,7 +136,9 @@ export async function verifyHold({ evaluatorName, orderId, total }) {
  * so the buyer's books get a proper invoice instead of a bare transfer.
  */
 export async function invoiceForJob({ supplierName, payerEmail, item, quantity, unitPrice, total, captureId }) {
-  if (!toolkitTools) return null;
+  // Off by default: the sandbox app returned 403 on invoice creation even with Invoicing enabled.
+  // Set TOOLKIT_INVOICES=on once the app's invoicing permission is active.
+  if (!toolkitTools || env('TOOLKIT_INVOICES') !== 'on') return null;
   if (!payerEmail) { console.warn('[paypal-tools] invoiceForJob: no payer email from PayPal, skipping'); return null; }
   const today = new Date().toISOString().slice(0, 10);
   try {

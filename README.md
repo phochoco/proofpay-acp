@@ -109,6 +109,23 @@ All calls are in [`src/paypal.js`](src/paypal.js), against `https://api-m.sandbo
 
 Every write carries a `PayPal-Request-Id`, so a retry can never double-charge.
 
+## PayPal Agent Toolkit
+
+The agents also act on PayPal through PayPal's own [Agent Toolkit](https://github.com/paypal/agent-toolkit)
+(`@paypal/agent-toolkit`), see [`src/paypal-tools.js`](src/paypal-tools.js). Claude receives a small,
+task-specific set of toolkit tools and decides which to call:
+
+- **Evaluator agent, `get_order`.** Before judging a delivery it looks up the held order on PayPal and
+  confirms the money is authorized for exactly the agreed amount. That becomes a hard check in the
+  delivery table (`paypal hold`), computed from PayPal's response rather than the model's summary.
+- **Supplier agent, `create_invoice` + `record_payment_for_invoice`.** Once paid, the supplier agent
+  issues a PayPal invoice for the job and marks it paid, so the buyer's books get a real invoice.
+  This is implemented but off by default (`TOOLKIT_INVOICES=on`): in our sandbox app PayPal still
+  answered `403 insufficient permissions` after Invoicing was enabled.
+
+The escrow itself stays on direct REST calls: the toolkit has no authorize or void tool, and money
+movement should not depend on a model's choice.
+
 ## How AI is used
 
 Language models talk, negotiate and explain. Plain code enforces every number that touches money.
