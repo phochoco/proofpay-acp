@@ -62,14 +62,6 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'content-type': 'text/plain' });
       return res.end(req.method === 'HEAD' ? undefined : 'ok');
     }
-    if (req.method === 'GET' && url.pathname === '/debug/invoice-scope' && paypal.mode === 'sandbox') { // temporary, read-only
-      const auth = Buffer.from(`${env('PAYPAL_CLIENT_ID')}:${env('PAYPAL_CLIENT_SECRET')}`).toString('base64');
-      const t = await fetch('https://api-m.sandbox.paypal.com/v1/oauth2/token', { method: 'POST', headers: { authorization: `Basic ${auth}`, 'content-type': 'application/x-www-form-urlencoded' }, body: 'grant_type=client_credentials' }).then((r) => r.json());
-      const scopes = String(t.scope || '').split(' ').filter(Boolean);
-      const list = await fetch('https://api-m.sandbox.paypal.com/v2/invoicing/invoices?page_size=1', { headers: { authorization: `Bearer ${t.access_token}` } });
-      const body = await list.text();
-      return send(res, 200, { scopeCount: scopes.length, invoicingScopes: scopes.filter((s) => /invoic/i.test(s)), listInvoicesStatus: list.status, listInvoicesBody: list.ok ? 'ok' : body.slice(0, 400) });
-    }
     if (req.method === 'GET' && url.pathname === '/') return send(res, 200, readFileSync(join(ROOT, 'public/index.html'), 'utf8'), 'text/html');
     if (url.pathname === '/favicon.ico') { res.writeHead(204); return res.end(); }
     if (req.method === 'GET' && /^\/fonts\/[\w-]+\.woff2$/.test(url.pathname)) {
