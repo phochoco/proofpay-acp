@@ -2,6 +2,9 @@
 
 **Agent-to-agent procurement where PayPal only pays after the delivery is verified.**
 
+**Live demo:** <https://proofpay-acp.onrender.com> (PayPal sandbox, Claude agents). The free instance
+sleeps when idle, so the first visit can take up to a minute.
+
 Small online sellers who source from overseas suppliers usually pay first and find out later. If the
 carton arrives short, or with a cheaper grade than agreed, the money is already gone.
 
@@ -73,6 +76,23 @@ The default request (500 NCR receipt books, max $2.00 each, cheapest first) play
 
 Run it again with "most trusted" selected and the buyer agent goes straight to Hanbit, whose price has
 moved because it decided to raise it after winning.
+
+## Two views
+
+- **Your order** walks the owner through one purchase in five steps: tell the agent what to buy,
+  agents negotiate, approve a hold in PayPal, the delivery is checked, the supplier is paid (or the
+  hold is released). The one action the owner has to take is always shown in a single place.
+- **Agent network** shows the market behind it: every supplier ranked by trust, what each agent has
+  earned and spent, sponsored slots, subcontracts and a live activity feed.
+
+## Verified in the PayPal sandbox
+
+A run on the live demo produced these sandbox transactions:
+
+| Supplier | PayPal order | Authorization | Result |
+| --- | --- | --- | --- |
+| QuickForm Trading ($695.00) | `9WJ30965L0345654F` | `815684354E9973020` | Delivery failed the check, authorization **voided** |
+| Hanbit Paper Co. ($875.00) | `8HY60512M8550322A` | `6H022418P1269690K` | Delivery passed, **captured** as `91S05700L20398739` |
 
 ## How PayPal is used
 
