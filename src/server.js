@@ -7,7 +7,11 @@ import { Orchestrator } from './orchestrator.js';
 import { llmInfo } from './llm.js';
 
 const PORT = Number(env('PORT', '3000'));
-const BASE_URL = env('BASE_URL', `http://localhost:${PORT}`);
+// On Render the public address is provided as RENDER_EXTERNAL_URL; PayPal sends the buyer back there.
+const BASE_URL = env('BASE_URL') || env('RENDER_EXTERNAL_URL') || `http://localhost:${PORT}`;
+// A public demo should not let one visitor run up the AI bill: cap new orders per hour.
+const RUNS_PER_HOUR = Number(env('RUNS_PER_HOUR', '30'));
+const runTimes = [];
 const clients = new Set();
 
 const paypal = createPayPal();
@@ -64,7 +68,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (req.method === 'POST' && url.pathname === '/api/run') {
-      if (orch.busy) return send(res, 409, { error: 'A run is already in progress.' });
+      if (orch.busy) return send(res, 409, { error: 'Another order is running right now. Try again in a minute.' });
+      const hourAgo = Date.now() - 3600e3;
+      while (runTimes.length && runTimes[0] < hourAgo) runTimes.shift();
+      if (runTimes.length >= RUNS_PER_HOUR) return send(res, 429, { error: `This demo allows ${RUNS_PER_HOUR} orders an hour. Try again later.` });
+      runTimes.push(Date.now());
       const input = await readBody(req);
       orch.run(input); // progress is streamed over /events
       return send(res, 202, { started: true });
