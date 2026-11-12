@@ -57,6 +57,11 @@ const backToApp = '<script>setTimeout(function(){ if (window.opener) window.clos
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, BASE_URL);
   try {
+    // Uptime monitors send HEAD as well as GET; this keeps the free instance awake.
+    if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/health') {
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      return res.end(req.method === 'HEAD' ? undefined : 'ok');
+    }
     if (req.method === 'GET' && url.pathname === '/') return send(res, 200, readFileSync(join(ROOT, 'public/index.html'), 'utf8'), 'text/html');
     if (url.pathname === '/favicon.ico') { res.writeHead(204); return res.end(); }
     if (req.method === 'GET' && /^\/fonts\/[\w-]+\.woff2$/.test(url.pathname)) {
