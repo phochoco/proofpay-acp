@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProofPay ACP</title>
+<style>
+  /* Palette comes from a carbonless triplicate form: indigo copy ink, a canary copy, a pink copy.
+     Canary means "held", pink means "returned" or "rejected", green is the paid stamp. */
+  @font-face {
+    font-family: "Archivo"; src: url("/fonts/archivo.woff2") format("woff2-variations");
+    font-weight: 100 900; font-stretch: 62% 125%; font-display: swap;
+  }
+  :root {
+    --page: #e9edf5; --sheet: #ffffff; --ink: #1f1d4d; --soft: #5d5b88; --rule: #c6cbe0;
+    --canary: #ffe45c; --canary-wash: #fff8d0; --pink: #ffb8cc; --pink-wash: #ffe9ef; --paid: #0b7a5b; --paid-wash: #e2f3ec;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 400 16px/1.5 "Archivo", "Helvetica Neue", Arial, sans-serif; font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 20px 72px; }
+  button, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+
+  /* masthead and view switch */
+  .top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; }
+  h1 { margin: 0; font-size: 42px; line-height: .95; font-weight: 800; font-stretch: 62%; letter-spacing: -.005em; }
+  .top p { margin: 0; font-size: 13.5px; color: var(--soft); text-align: right; }
+  .top p b { color: var(--ink); font-weight: 600; }
+  .pitch { margin: 8px 0 0; max-width: 64ch; font-size: 17px; line-height: 1.4; }
+  .views { display: flex; margin-top: 22px; border-bottom: 2px solid var(--ink); }
+  .views button { border: 2px solid var(--ink); border-bottom: 0; background: transparent; padding: 10px 20px 9px; margin-right: -2px; font-weight: 700; font-stretch: 82%; font-size: 17px; cursor: pointer; border-radius: 5px 5px 0 0; position: relative; top: 2px; }
+  .views button[aria-selected=true] { background: var(--sheet); border-bottom: 2px solid var(--sheet); }
+  .views button small { font-weight: 600; color: var(--soft); margin-left: 6px; }
+  .views button .ping { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--canary); border: 1.5px solid var(--ink); margin-left: 7px; vertical-align: 1px; }
+  .panel { background: var(--sheet); border: 2px solid var(--ink); border-top: 0; border-radius: 0 0 5px 5px; padding: 24px 24px 30px; }
+
+  h2 { margin: 34px 0 10px; font-size: 24px; line-height: 1.1; font-weight: 750; font-stretch: 70%; }
+  .sub { margin: -4px 0 12px; color: var(--soft); max-width: 90ch; font-size: 15px; }
+  .sub b { color: var(--ink); font-weight: 650; }
+  .quiet { border: 0; background: none; padding: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; color: var(--ink); font-weight: 600; }
+
+  /* ---------- your order ---------- */
+  /* five steps of one order; the current one is drawn as the active carbon copy */
+  .steps { list-style: none; margin: 0 0 22px; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); counter-reset: step; }
+  .steps li { position: relative; padding: 10px 12px 10px 44px; border: 2px solid var(--rule); background: var(--page); font-size: 14.5px; line-height: 1.25; font-weight: 650; font-stretch: 85%; color: var(--soft); min-height: 58px; display: flex; align-items: center; }
+  .steps li + li { border-left: 0; }
+  .steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--rule); display: grid; place-items: center; font-size: 13px; font-weight: 800; background: var(--sheet); }
+  .steps li.done { color: var(--ink); background: var(--sheet); }
+  .steps li.done::before { content: "✓"; background: var(--ink); border-color: var(--ink); color: #fff; }
+  .steps li.now { color: var(--ink); background: var(--canary); box-shadow: inset 0 0 0 2px var(--ink); }
+  .steps li.now::before { border-color: var(--ink); }
+  .steps li.good { background: var(--paid); color: #fff; box-shadow: inset 0 0 0 2px var(--paid); }
+  .steps li.good::before { content: "✓"; background: #fff; border-color: #fff; color: var(--paid); }
+  .steps li.bad { background: var(--pink); color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+
+  /* the request, written as a sentence with blanks to fill in */
+  .ask { border: 0; margin: 0; padding: 0; min-width: 0; font-size: 22px; line-height: 2; font-stretch: 85%; }
+  .ask legend { padding: 0; margin-bottom: 2px; font-size: 13.5px; line-height: 1.4; font-stretch: 100%; color: var(--soft); }
+  .ask input, .ask select { font: inherit; font-weight: 700; color: var(--ink); background: transparent; border: 0; border-bottom: 2px solid var(--ink); border-radius: 0; padding: 0 4px; text-align: center; }
+  .ask select { text-align: left; cursor: pointer; padding-right: 2px; }
+  .ask input:focus, .ask select:focus { background: var(--canary-wash); outline: 0; border-bottom-width: 4px; }
+  .ask input.wide { display: block; width: 100%; text-align: left; }
+  .ask input.n { width: 4.2ch; } .ask input.q { width: 5.2ch; } .ask input.p { width: 5ch; }
+  .ask input::-webkit-outer-spin-button, .ask input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .ask input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+  .ask:disabled { opacity: .55; }
+  .limits { margin: 6px 0 0; font-size: 14px; color: var(--soft); }
+
+  /* the one thing to do now */
+  .now { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 18px 20px; background: var(--page); border: 2px solid var(--ink); border-radius: 5px; }
+  .now p { margin: 0; font-size: 20px; font-weight: 650; font-stretch: 86%; line-height: 1.3; flex: 1 1 320px; }
+  .now p small { display: block; margin-top: 4px; font-size: 14.5px; font-weight: 400; font-stretch: 100%; color: var(--soft); }
+  .now.waiting { background: var(--canary); }
+  .now.waiting p small { color: var(--ink); }
+  .now.done { background: var(--paid); border-color: var(--paid); color: #fff; }
+  .now.done p small { color: #dff3ea; }
+  .now.error { background: var(--pink); }
+  .now.working p::before, .live::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 10px; border-radius: 50%; background: var(--ink); animation: beat 1s ease-in-out infinite; vertical-align: 2px; }
+  .live::before { background: var(--paid); width: 8px; height: 8px; margin-right: 7px; }
+  @keyframes beat { 50% { opacity: .2; } }
+  .act { border: 2px solid var(--ink); background: var(--ink); color: #fff; font-weight: 700; font-stretch: 85%; font-size: 18px; padding: 13px 24px; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; white-space: nowrap; }
+  .now.done .act { background: #fff; color: var(--paid); border-color: #fff; }
+
+  /* offers: one card per invited supplier */
+  .offers { display: grid; grid-template-columns: repeat(auto-fill, minmax(206px, 1fr)); gap: 12px; }
+  .offer { border: 2px solid var(--rule); border-radius: 5px; padding: 14px 14px 12px; background: var(--sheet); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .offer h3 { margin: 0; font-size: 19px; line-height: 1.15; font-weight: 750; font-stretch: 75%; }
+  .offer .trust { font-size: 13px; color: var(--soft); }
+  .offer .trust b { color: var(--ink); }
+  .offer .price { font-size: 30px; line-height: 1; font-weight: 800; font-stretch: 62%; margin-top: 4px; }
+  .offer .price s { font-size: 18px; color: var(--soft); font-weight: 600; margin-right: 6px; text-decoration-thickness: 2px; }
+  .offer .terms { font-size: 13.5px; color: var(--soft); }
+  .offer .said { margin: 2px 0 0; font-size: 13.5px; line-height: 1.4; font-style: italic; border-top: 1px solid var(--rule); padding-top: 8px; flex: 1; }
+  .offer .said span { display: block; font-style: normal; font-size: 12px; color: var(--soft); margin-top: 3px; }
+  .chip { align-self: flex-start; font-size: 12.5px; font-weight: 700; font-stretch: 85%; padding: 2px 8px; border-radius: 3px; background: var(--page); border: 1.5px solid var(--rule); }
+  .ad { align-self: flex-start; background: var(--canary); font-weight: 650; font-size: 12px; padding: 1px 6px; border-radius: 3px; }
+  .offer.chosen { border-color: var(--ink); background: var(--canary-wash); }
+  .offer.chosen .chip { background: var(--canary); border-color: var(--ink); }
+  .offer.paid { border-color: var(--paid); background: var(--paid-wash); }
+  .offer.paid .chip { background: var(--paid); border-color: var(--paid); color: #fff; }
+  .offer.back { border-color: var(--ink); background: var(--pink-wash); }
+  .offer.back .chip { background: var(--pink); border-color: var(--ink); }
+  .offer.out { opacity: .55; }
+  .offers .empty { grid-column: 1 / -1; margin: 0; border: 2px dashed var(--rule); border-radius: 5px; }
+
+  /* where your money is: the PayPal hold moving between three places */
+  .rail { border: 2px solid var(--ink); border-radius: 5px; overflow: hidden; }
+  .rail .zones, .rail .lane { display: grid; grid-template-columns: 200px minmax(0, 1fr) 250px; }
+  .rail .zones { border-bottom: 2px solid var(--ink); font-size: 13.5px; font-weight: 650; font-stretch: 82%; }
+  .rail .zones > span { padding: 9px 14px; }
+  .rail .z3 { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .rail .z3 span { padding: 9px 4px; text-align: center; }
+  .rail .z3 span:nth-child(2) { background: var(--canary); }
+  .rail .z3 span + span, .track i + i { border-left: 2px dashed var(--rule); }
+  .lane + .lane { border-top: 1px solid var(--rule); }
+  .lane .nm { padding: 14px; font-weight: 750; font-stretch: 78%; font-size: 18px; line-height: 1.2; }
+  .lane .nm small { display: block; font-weight: 400; font-stretch: 100%; font-size: 13px; color: var(--soft); }
+  .track { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); min-height: 96px; }
+  .track i:nth-child(2) { background: var(--canary-wash); }
+  .track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px solid var(--rule); }
+  .token { position: absolute; top: 50%; left: calc((var(--pos) + .5) * 33.3333%); transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 3px; transition: left .9s cubic-bezier(.65, 0, .2, 1); }
+  .token b { display: block; padding: 5px 12px; border: 2px solid var(--ink); border-radius: 5px; background: var(--sheet); font-size: 23px; line-height: 1.15; font-weight: 800; font-stretch: 66%; white-space: nowrap; transition: background .3s, color .3s, border-color .3s; }
+  .token small { font-size: 12.5px; font-weight: 650; font-stretch: 82%; white-space: nowrap; background: var(--sheet); padding: 0 5px; border-radius: 3px; }
+  .token.pending b { border-style: dashed; }
+  .token.held b { background: var(--canary); }
+  .token.held small { background: var(--canary-wash); }
+  .token.paid b { background: var(--paid); border-color: var(--paid); color: #fff; }
+  .token.back b { background: var(--pink); }
+  .lane .res { padding: 14px; font-size: 13px; color: var(--soft); line-height: 1.4; min-width: 0; }
+  .lane .res b { display: block; font-size: 15px; color: var(--ink); font-weight: 650; margin-bottom: 2px; }
+  .lane .res .ids { overflow-wrap: anywhere; font-size: 12px; margin-top: 4px; }
+
+  /* delivery check */
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+  .tabs button { border: 2px solid var(--ink); background: transparent; border-radius: 4px; padding: 6px 12px; font-weight: 650; font-stretch: 85%; cursor: pointer; }
+  .tabs button[aria-pressed=true] { background: var(--ink); color: #fff; }
+  .check { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 24px; padding: 20px; border: 2px solid var(--ink); border-radius: 5px; }
+  .check.bad { background: var(--pink-wash); }
+  .check.good { background: var(--paid-wash); }
+  .check h3 { margin: 0 0 4px; font-size: 22px; line-height: 1.2; font-weight: 750; font-stretch: 75%; }
+  .check .why { margin: 0 0 14px; max-width: 62ch; }
+  .check .by { font-size: 13px; color: var(--soft); }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th { text-align: left; font-size: 13px; font-weight: 600; color: var(--soft); padding: 6px 10px 6px 0; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+  td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+  td:last-child, th:last-child { text-align: right; padding-right: 0; white-space: nowrap; font-weight: 750; font-stretch: 80%; }
+  tr.fail td { background: var(--pink); border-color: var(--ink); }
+  tr.fail td:first-child { padding-left: 8px; } tr.fail td:last-child { padding-right: 8px; }
+  tr.ok td:last-child { color: var(--paid); }
+  .check img { width: 100%; height: auto; display: block; border-radius: 2px; }
+  .check figure { margin: 0; } .check figcaption { font-size: 13px; color: var(--soft); margin-top: 6px; }
+
+  /* transcript */
+  details.say { margin-top: 30px; border-top: 2px solid var(--ink); }
+  details.say summary { cursor: pointer; padding: 14px 0 10px; font-size: 21px; font-weight: 750; font-stretch: 70%; }
+  details.say summary small { font-size: 14px; font-weight: 500; font-stretch: 100%; color: var(--soft); margin-left: 8px; }
+  .list { list-style: none; margin: 0; padding: 0; border: 2px solid var(--ink); border-radius: 5px; background: var(--sheet); }
+  .list li + li { border-top: 1px solid var(--rule); }
+  .talk { max-height: 440px; overflow: auto; }
+  .talk li { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 4px 18px; padding: 10px 16px; }
+  .talk .from { font-weight: 700; font-stretch: 82%; line-height: 1.3; }
+  .talk .from span { display: block; font-weight: 400; font-size: 13px; color: var(--soft); font-stretch: 100%; }
+  .talk p { margin: 0; }
+  .tag { font-size: 13px; color: var(--soft); }
+  .talk li.paypal { background: var(--canary-wash); }
+  .talk li.evaluator, .talk li.policy { box-shadow: inset 6px 0 0 var(--ink); }
+  .chain { margin: 10px 0 0; font-size: 13px; color: var(--soft); overflow-wrap: anywhere; }
+  .empty { padding: 26px 18px; text-align: center; color: var(--soft); display: block; }
+
+  /* ---------- agent network ---------- */
+  .tally { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 2px solid var(--ink); border-radius: 5px; }
+  .tally div { padding: 12px 16px 13px; min-width: 0; }
+  .tally div + div { border-left: 2px dashed var(--rule); }
+  .tally b { display: block; font-size: 34px; line-height: 1; font-weight: 800; font-stretch: 62%; white-space: nowrap; }
+  .tally b.bump, .earn b.bump { animation: bump .9s ease-out; }
+  @keyframes bump { from { background: var(--canary); } }
+  .tally span { display: block; margin-top: 5px; font-size: 13.5px; line-height: 1.3; color: var(--soft); }
+  .tally .paid b { color: var(--paid); }
+  .rules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 22px; margin: 18px 0 4px; }
+  .rules p { margin: 0; padding-top: 8px; border-top: 2px solid var(--ink); font-size: 14.5px; line-height: 1.4; color: var(--soft); }
+  .rules p b { display: block; color: var(--ink); font-size: 16px; font-weight: 750; font-stretch: 80%; margin-bottom: 2px; }
+
+  .net { border: 2px solid var(--ink); border-radius: 5px; overflow: hidden; }
+  .row, .heads { display: grid; grid-template-columns: 54px minmax(0, 1.3fr) 360px 110px minmax(0, 1fr); }
+  .heads { border-bottom: 2px solid var(--ink); font-size: 13.5px; font-weight: 650; font-stretch: 82%; }
+  .heads > span { padding: 9px 12px; }
+  .row { background: var(--sheet); position: relative; }
+  .row + .row { border-top: 1px solid var(--rule); }
+  .row.moving { z-index: 2; box-shadow: 0 0 0 2px var(--ink); }
+  .row.mine { background: var(--canary-wash); }
+  .row.extra { display: none; }
+  .net.all .row.extra { display: grid; }
+  .rk { padding: 12px 0 0 14px; }
+  .rk b { display: block; font-size: 30px; line-height: 1; font-weight: 800; font-stretch: 62%; }
+  .rk small { font-size: 12px; font-weight: 650; white-space: nowrap; }
+  .rk small.up, .score small.up { color: var(--paid); }
+  .who { padding: 11px 12px; min-width: 0; }
+  .who h3 { margin: 0; font-size: 19px; line-height: 1.15; font-weight: 750; font-stretch: 75%; }
+  .who p { margin: 2px 0 0; font-size: 13px; color: var(--soft); line-height: 1.35; }
+  .who p.own { color: var(--ink); font-style: italic; }
+  .who .ad { display: inline-block; margin-top: 4px; }
+  .rec { padding: 11px 12px; display: grid; grid-template-columns: 56px 96px minmax(0, 1fr); align-items: center; column-gap: 10px; }
+  .score b { display: block; font-size: 30px; line-height: 1; font-weight: 800; font-stretch: 62%; }
+  .score small, .earn small { display: block; font-size: 12px; font-weight: 600; color: var(--soft); white-space: nowrap; }
+  .earn small { white-space: pre-line; line-height: 1.3; }
+  .spark { display: block; width: 96px; height: 34px; overflow: visible; cursor: crosshair; }
+  .hist { min-width: 0; overflow: hidden; }
+  .hist svg { display: block; }
+  .hist span { display: block; margin-top: 3px; font-size: 12.5px; color: var(--soft); white-space: nowrap; }
+  .earn { padding: 11px 8px 11px 12px; align-self: center; }
+  .earn b { display: block; font-size: 22px; line-height: 1.1; font-weight: 800; font-stretch: 66%; white-space: nowrap; }
+  .inv { padding: 11px 14px; align-self: center; font-size: 13px; color: var(--soft); line-height: 1.4; min-width: 0; }
+  .inv b { display: block; font-size: 15px; color: var(--ink); font-weight: 650; }
+  .more-btn { margin: 0; border: 0; border-top: 1px solid var(--rule); background: var(--sheet); width: 100%; padding: 11px; font-weight: 650; font-stretch: 85%; cursor: pointer; color: var(--ink); }
+  .more-btn:hover { background: var(--canary-wash); }
+  .key { margin: 10px 0 0; font-size: 13px; color: var(--soft); display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+  .key svg { vertical-align: -2px; margin-right: 5px; }
+  #tip { position: fixed; z-index: 10; pointer-events: none; background: var(--ink); color: #fff; font-size: 13px; line-height: 1.35; padding: 6px 9px; border-radius: 4px; max-width: 240px; display: none; }
+
+  .two { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 0 28px; align-items: start; }
+  .feed li { padding: 9px 14px; font-size: 14.5px; line-height: 1.4; }
+  .feed li.new { animation: drop .5s ease-out; }
+  .feed li.mine { background: var(--canary-wash); font-weight: 600; }
+  .feed .no { background: var(--pink); padding: 0 4px; border-radius: 2px; }
+  @keyframes drop { from { background: var(--canary); } }
+  .evals li { padding: 9px 14px; display: flex; justify-content: space-between; gap: 12px; font-size: 14.5px; }
+  .evals li > span { color: var(--soft); text-align: right; white-space: nowrap; }
+
+  @media (max-width: 1000px) {
+    .steps li { padding: 36px 6px 8px; font-size: 12.5px; text-align: center; justify-content: center; min-height: 0; }
+    .steps li::before { left: 50%; top: 7px; transform: translateX(-50%); }
+    .rail .zones, .rail .lane { grid-template-columns: minmax(0, 1fr); }
+    .rail .zones > span { display: none; }
+    .lane .nm { padding-bottom: 0; } .lane .res { padding-top: 0; }
+    .check { grid-template-columns: 1fr; } .check figure { max-width: 300px; }
+    .row { grid-template-columns: 50px minmax(0, 1fr) 360px 100px; }
+    .inv, .heads .hinv { display: none; }
+    .tally { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tally div:nth-child(3) { border-left: 0; }
+    .tally div:nth-child(n+3) { border-top: 2px dashed var(--rule); }
+    .rules, .two { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 18px 12px 60px; }
+    h1 { font-size: 34px; } .top p { text-align: left; } .ask { font-size: 18px; }
+    .panel { padding: 16px 12px 24px; }
+    .views button { padding: 9px 12px 8px; font-size: 15px; }
+    .steps li { font-size: 11px; padding: 34px 3px 7px; }
+    .now p { font-size: 17px; }
+    .act { width: 100%; text-align: center; }
+    .heads { display: none; }
+    .row { grid-template-columns: 46px minmax(0, 1fr) 84px; }
+    .rec { grid-column: 1 / -1; grid-row: 2; padding-top: 0; }
+    .earn { grid-column: 3; grid-row: 1; align-self: start; }
+    .token b { font-size: 19px; padding: 4px 8px; }
+    .tally b { font-size: 26px; }
+    .talk li { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { .token, .token b, .row { transition: none !important; } .now.working p::before, .live::before, .feed li.new, .tally b.bump, .earn b.bump { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>ProofPay ACP</h1>
+    <p id="modes"></p>
+  </div>
+  <p class="pitch">AI agents buy stock for your shop. PayPal holds your money and pays the supplier only after an independent agent has checked the delivery.</p>
+
+  <div class="views" role="tablist" aria-label="Views">
+    <button type="button" role="tab" id="tab-order" aria-controls="view-order" aria-selected="true">Your order<span class="ping" id="ping" title="A hold is waiting for your approval" hidden></span></button>
+    <button type="button" role="tab" id="tab-net" aria-controls="view-net" aria-selected="false">Agent network<small id="netcount"></small></button>
+  </div>
+
+  <!-- ===================== your order ===================== -->
+  <section class="panel" id="view-order" role="tabpanel" aria-labelledby="tab-order">
+    <ol class="steps" id="steps">
+      <li>Tell your agent what to buy</li>
+      <li>Agents negotiate</li>
+      <li>You approve a hold in PayPal</li>
+      <li>Delivery is checked</li>
+      <li>Supplier paid</li>
+    </ol>
+
+    <form id="form"><fieldset class="ask" id="ask">
+      <legend>Your request</legend>
+      Buy <input class="q" id="quantity" type="number" min="1" value="500" aria-label="Quantity"> of
+      <input class="wide" id="text" type="text" value="NCR carbonless receipt book, A5, 3-part, 50 sets per book" aria-label="What to buy, in plain language">
+      for at most $<input class="p" id="maxUnitPrice" type="number" min="0.01" step="0.01" value="2.00" aria-label="Maximum price per unit in US dollars"> each,
+      delivered within <input class="n" id="deadlineDays" type="number" min="1" value="14" aria-label="Deadline in days"> days.
+      Start with the <select id="strategy" aria-label="Which supplier to try first"><option value="price">cheapest</option><option value="trust">most trusted</option></select> supplier.
+    </fieldset></form>
+    <p class="limits" id="limits"></p>
+
+    <div class="now" id="now" role="status" aria-live="polite"></div>
+
+    <h2>Offers</h2>
+    <p class="sub" id="offersSub"></p>
+    <div class="offers" id="offers"></div>
+
+    <div id="railWrap" hidden>
+      <h2>Where your money is</h2>
+      <div class="rail">
+        <div class="zones"><span>Supplier</span><div class="z3"><span>Your PayPal</span><span>Held by PayPal</span><span>Supplier</span></div><span>Result</span></div>
+        <div id="lanes"></div>
+      </div>
+    </div>
+
+    <div id="checkWrap"></div>
+
+    <details class="say" id="sayBox">
+      <summary>What the agents said<small id="sayCount"></small></summary>
+      <ol class="list talk" id="talk"></ol>
+      <p class="chain" id="chain"></p>
+    </details>
+  </section>
+
+  <!-- ===================== agent network ===================== -->
+  <section class="panel" id="view-net" role="tabpanel" aria-labelledby="tab-net" hidden>
+    <div class="tally">
+      <div class="paid"><b id="t-paid">$0</b><span>paid to suppliers through PayPal after a passed check</span></div>
+      <div><b id="t-back">$0</b><span>held through PayPal and released back to you after a failed check</span></div>
+      <div><b id="t-earned">$0</b><span>earned by all agents, simulated traffic included</span></div>
+      <div><b id="t-ads">$0</b><span>spent by agents on sponsored slots</span></div>
+    </div>
+    <div class="rules">
+      <p><b>They earn</b><span id="r-earn"></span></p>
+      <p><b>They spend</b>A sponsored slot buys one of five invitations, never rank. A supplier can hire another agent and pay from its own balance.</p>
+      <p><b>They get checked</b>Money stays held in PayPal until an evaluator agent matches the delivery to the deal. Every result moves the trust score.</p>
+    </div>
+
+    <h2>Supplier agents, ranked by trust</h2>
+    <p class="sub" id="totals"></p>
+    <div class="net" id="net">
+      <div class="heads"><span>Rank</span><span>Agent</span><span>Trust score and track record</span><span>Earned</span><span class="hinv">Next invitation</span></div>
+      <div id="rows"></div>
+      <button class="more-btn" type="button" id="more" aria-expanded="false"></button>
+    </div>
+    <p class="key">
+      <span><svg width="11" height="11"><rect width="11" height="11" rx="2" fill="#0b7a5b"/></svg>Delivery passed</span>
+      <span><svg width="11" height="11"><rect x="1" y="1" width="9" height="9" rx="1.5" fill="#ffb8cc" stroke="#1f1d4d" stroke-width="1.5"/><path d="M3 3l5 5M8 3l-5 5" stroke="#1f1d4d" stroke-width="1.5"/></svg>Delivery rejected</span>
+      <span>Faded marks are seeded or simulated jobs. Solid marks are yours, settled through PayPal.</span>
+      <span>Trust is the lower bound of the pass rate, so a short spotless record still scores low.</span>
+    </p>
+
+    <div class="two">
+      <div>
+        <h2>Network activity</h2>
+        <p class="sub" id="ambient"></p>
+        <ul class="list feed" id="feed"></ul>
+      </div>
+      <div>
+        <h2>Evaluator agents</h2>
+        <p class="sub">One is assigned to each delivery. They are paid for the check, not the verdict.</p>
+        <ul class="list evals" id="evals"></ul>
+        <p class="chain"><button class="quiet" type="button" id="wipe">Reset all track records</button></p>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const usd = (n) => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const usd0 = (n) => '$' + Math.round(n).toLocaleString('en-US');
+const pts = (v) => Math.round(v * 100);
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const cut = (t, n) => (t.length > n ? t.slice(0, t.lastIndexOf(' ', n)) + '…' : t);
+const WORKING = {
+  REQUEST: 'Asking suppliers for a quote', SPONSORED_SLOT: 'Asking suppliers for a quote',
+  QUOTE: 'Quotes are in. Your agent is pushing back on price', COUNTER: 'Suppliers are answering the counter-offer',
+  FINAL_OFFER: 'Final offers are in. Picking who goes first', DECLINE: 'Picking who goes first', AWARD: 'Setting up a hold in PayPal',
+  ESCROW_REQUESTED: 'Confirming the hold with PayPal', ESCROW_FUNDED: 'Your money is held. The supplier is delivering',
+  SUBCONTRACT: 'Your money is held. The supplier is delivering', DELIVERY: 'An evaluator agent is checking the delivery',
+  VERDICT_APPROVE: 'Delivery passed. Releasing the payment', VERDICT_REJECT: 'Delivery failed. Releasing your hold',
+  REFUND_VOID: 'Hold released. Trying the most trusted supplier left', FEE: 'Settling with PayPal', SETTLEMENT: 'Supplier paid. Wrapping up',
+  COMMISSION: 'Supplier paid. Wrapping up', OWN_DECISION: 'Supplier agents are deciding how to bid next time',
+};
+const TOKEN = {
+  AWAITING_BUYER_APPROVAL: [0, 'pending', 'waiting for you'], AUTHORIZED: [1, 'held', 'held, not paid'],
+  CAPTURED: [2, 'paid', 'paid'], VOIDED: [0, 'back', 'released to you'], NOT_APPROVED: [0, 'back', 'not approved'],
+};
+let state = null, view = 'order', showAll = false, picked = null, pickedRun = null, talkKey = '', feedTop = 0;
+const rows = new Map(), lanes = new Map();
+try { if (localStorage.getItem('view') === 'net') view = 'net'; } catch {}
+
+function post(path, body) { return fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) }); }
+function start() {
+  const body = { text: $('text').value, quantity: $('quantity').value, maxUnitPrice: $('maxUnitPrice').value, deadlineDays: $('deadlineDays').value, strategy: $('strategy').value };
+  setView('order');
+  post('/api/run', body)
+    .then(async (res) => { if (!res.ok) showNow('error', (await res.json().catch(() => ({}))).error || 'The agents could not start.', 'Check that the server is running.'); })
+    .catch(() => showNow('error', 'The agents could not start.', 'Check that the server is running.'));
+}
+$('form').addEventListener('submit', (e) => { e.preventDefault(); start(); });
+$('wipe').addEventListener('click', () => { if (confirm('Reset every agent to its starting track record? Your past jobs in this app will be forgotten.')) post('/api/reset-network'); });
+$('more').addEventListener('click', () => { showAll = !showAll; if (state) renderNet(state, names(state)); });
+function setView(v) {
+  view = v;
+  try { localStorage.setItem('view', v); } catch {}
+  $('tab-order').setAttribute('aria-selected', String(v === 'order')); $('tab-net').setAttribute('aria-selected', String(v === 'net'));
+  $('view-order').hidden = v !== 'order'; $('view-net').hidden = v !== 'net';
+  if (state) render(state);
+}
+$('tab-order').addEventListener('click', () => setView('order'));
+$('tab-net').addEventListener('click', () => setView('net'));
+setView(view);
+
+function showNow(kind, text, detail = '', actionHtml = '') {
+  const el = $('now');
+  const html = `<p>${esc(text)}${detail ? `<small>${esc(detail)}</small>` : ''}</p>${actionHtml}`;
+  if (el.dataset.html === html && el.className === 'now ' + kind) return;
+  el.className = 'now ' + kind; el.dataset.html = html; el.innerHTML = html;
+  el.querySelector('[data-go]')?.addEventListener('click', start);
+}
+function names(s) {
+  const n = Object.fromEntries(s.agents.map((a) => [a.id, a]));
+  n.paypal = { name: 'PayPal', role: 'paypal' }; n.policy = { name: 'Your spending limit', role: 'policy' }; n.network = { name: 'The network', role: 'policy' };
+  return n;
+}
+
+function render(s) {
+  state = s;
+  const name = names(s), run = s.run, mock = s.mode.paypal !== 'sandbox';
+  $('modes').innerHTML = (mock ? 'Mock payments, no PayPal credentials set' : '<b>PayPal sandbox</b> connected') + '<br>'
+    + (s.mode.llm.provider === 'scripted' ? 'Scripted agents, no AI key set' : `Agents run on <b>${esc(s.mode.llm.model)}</b>`);
+  $('netcount').textContent = `${s.agents.length} agents`;
+  const waiting = run && run.jobs.find((j) => j.escrow && j.escrow.status === 'AWAITING_BUYER_APPROVAL' && j.escrow.approveUrl);
+  $('ping').hidden = !(waiting && view !== 'order');
+  $('ask').disabled = Boolean(s.busy);
+
+  if (run && run.error) showNow('error', 'The agents stopped.', run.error, '<button class="act" type="button" data-go>Try again</button>');
+  else if (waiting) showNow('waiting', `Approve a hold of ${usd(waiting.escrow.amount)} for ${name[waiting.provider].name}.`,
+    'PayPal keeps the money in your account until the delivery passes its check. If it fails, the hold is released and you are not charged.',
+    `<a class="act" href="${esc(waiting.escrow.approveUrl)}" target="_blank" rel="opener">${mock ? 'Approve hold (mock)' : 'Approve hold in PayPal'}</a>`);
+  else if (s.busy) showNow('working', (WORKING[s.ledger.at(-1)?.type] || 'Reading your request') + '.', 'Nothing to do until a hold needs your approval.');
+  else if (run && run.outcome) showNow(run.outcome.paid ? 'done' : 'idle', outcomeLine(run), outcomeDetail(run), '<button class="act" type="button" data-go>Send agents again</button>');
+  else showNow('idle', 'Fill in your request and send your agent.', 'Up to five suppliers will quote. Nothing is charged until you approve a hold, and nothing is paid until the delivery passes.', '<button class="act" type="button" data-go>Send agents</button>');
+  $('limits').textContent = `Your limits: no hold above ${usd(s.policy.maxOrderUsd)}, and you approve every hold yourself. The agents cannot change either.`;
+
+  renderSteps(s);
+  if (view === 'order') { renderOffers(s, name); renderRail(s, name); renderCheck(s, name); renderTalk(s, name); }
+  else renderNet(s, name);
+}
+
+function outcomeLine(run) {
+  const o = run.outcome;
+  if (o.paid) return `Done. ${usd(o.paid.amount)} paid to ${o.paid.supplier} after the delivery passed.`;
+  return o.voided.length ? 'No supplier passed the check, so nobody was paid.' : 'No supplier was paid and no money moved.';
+}
+function outcomeDetail(run) {
+  const back = run.outcome.voided.map((v) => `${usd(v.amount)} held for ${v.supplier} was released back to you`).join('. ');
+  return back ? back + '.' : 'Nothing else was held.';
+}
+
+function renderSteps(s) {
+  const run = s.run, jobs = run?.jobs || [];
+  let at = 0;
+  if (run) {
+    if (run.outcome || run.error) at = 5;
+    else if (jobs.some((j) => j.phase === 'EVALUATION')) at = 3;
+    else if (jobs.some((j) => j.escrow && ['AWAITING_BUYER_APPROVAL', 'AUTHORIZED'].includes(j.escrow.status))) at = 2;
+    else at = 1;
+  }
+  const items = $('steps').children;
+  [...items].forEach((li, i) => { li.className = i < at ? 'done' : i === at ? 'now' : ''; });
+  if (at === 5) {
+    const ok = Boolean(run.outcome?.paid);
+    items[4].className = ok ? 'good' : 'bad';
+    items[4].textContent = ok ? 'Supplier paid' : 'Hold released';
+  } else items[4].textContent = 'Supplier paid';
+}
+
+function offerState(j, run, active) {
+  const e = j.escrow?.status;
+  if (e === 'CAPTURED') return ['paid', 'Passed and paid'];
+  if (e === 'VOIDED') return ['back', 'Failed check, hold released'];
+  if (e === 'NOT_APPROVED') return ['back', 'Hold not approved'];
+  if (e === 'AUTHORIZED') return ['chosen', j.phase === 'EVALUATION' ? 'Delivered, being checked' : 'Chosen, money held'];
+  if (e === 'AWAITING_BUYER_APPROVAL') return ['chosen', 'Chosen, needs your approval'];
+  if (j.phase === 'REJECTED') return ['out', /ceiling|limit|deadline/i.test(j.note) ? 'Over your limits' : run.outcome ? 'Not needed' : 'Declined'];
+  if (j.phase === 'REQUEST') return ['', 'Quoting'];
+  return ['', run.outcome ? 'Not needed' : active ? 'Next in line' : 'Negotiating'];
+}
+
+function renderOffers(s, name) {
+  const run = s.run, box = $('offers');
+  if (!run) {
+    $('offersSub').textContent = 'Your agent invites the four most trusted suppliers for the item, plus one that bought a sponsored slot.';
+    if (box.dataset.key !== 'none') { box.dataset.key = 'none'; box.innerHTML = '<p class="empty">No offers yet. They appear here as each supplier agent quotes.</p>'; }
+    return;
+  }
+  const active = run.jobs.some((j) => j.escrow);
+  $('offersSub').textContent = `${run.jobs.length} supplier agents quoted for ${run.terms ? `${run.terms.quantity} × ${run.terms.item}` : 'your request'}. `
+    + (run.strategy === 'trust' ? 'You asked to start with the most trusted.' : 'You asked to start with the cheapest that fits your limits.');
+  const html = run.jobs.map((j) => {
+    const a = name[j.provider], [cls, label] = offerState(j, run, active);
+    const first = s.ledger.find((m) => m.jobId === j.id && m.type === 'QUOTE');
+    const last = [...s.ledger].reverse().find((m) => m.jobId === j.id && m.from === j.provider && ['QUOTE', 'FINAL_OFFER'].includes(m.type));
+    const price = j.offer ? (first && first.data.unitPrice !== j.offer.unitPrice ? `<s>${usd(first.data.unitPrice)}</s>${usd(j.offer.unitPrice)}` : usd(j.offer.unitPrice)) : '…';
+    const sponsored = run.sponsored?.id === j.provider;
+    return `<article class="offer ${cls}"><span class="chip">${esc(label)}</span>
+      <h3>${esc(a.name)}</h3>${sponsored ? `<span class="ad">Sponsored: paid ${usd0(run.sponsored.bid)} to be invited</span>` : ''}
+      <span class="trust">Trust <b>${pts(a.trust)}</b>, ${a.passed} of ${a.jobs} deliveries passed</span>
+      <span class="price">${price}</span><span class="terms">each${j.offer ? `, ready in ${j.offer.leadDays} days` : ''}${j.agreed ? `, ${usd(j.agreed.total)} total` : ''}</span>
+      ${last ? `<p class="said">&ldquo;${esc(cut(last.content, 150))}&rdquo;<span>${last.source === 'llm' ? 'Written by its AI agent' : 'Scripted agent'}</span></p>` : ''}</article>`;
+  }).join('');
+  if (box.dataset.key !== html) { box.dataset.key = html; box.innerHTML = html; }
+}
+
+function renderRail(s, name) {
+  const run = s.run, held = (run?.jobs || []).filter((j) => j.escrow);
+  $('railWrap').hidden = !held.length;
+  const box = $('lanes');
+  if (!held.length) { box.innerHTML = ''; lanes.clear(); box.dataset.run = ''; return; }
+  if (box.dataset.run !== run.id) { box.innerHTML = ''; lanes.clear(); box.dataset.run = run.id; }
+  for (const j of held) {
+    let L = lanes.get(j.id);
+    const t = TOKEN[j.escrow.status] || TOKEN.AWAITING_BUYER_APPROVAL;
+    if (!L) {
+      const el = document.createElement('div');
+      el.className = 'lane';
+      el.innerHTML = '<div class="nm"></div><div class="track"><i></i><i></i><i></i><div class="token"><b></b><small></small></div></div><div class="res"></div>';
+      box.append(el);
+      L = { nm: el.querySelector('.nm'), token: el.querySelector('.token'), amt: el.querySelector('.token b'), cap: el.querySelector('.token small'), res: el.querySelector('.res') };
+      lanes.set(j.id, L);
+      L.token.style.setProperty('--pos', 0); // every hold starts in your own PayPal and slides from there
+    }
+    L.nm.innerHTML = `${esc(name[j.provider].name)}<small>${j.agreed.quantity} at ${usd(j.agreed.unitPrice)}</small>`;
+    requestAnimationFrame(() => L.token.style.setProperty('--pos', t[0]));
+    L.token.className = 'token ' + t[1]; L.amt.textContent = usd(j.escrow.amount); L.cap.textContent = t[2];
+    const e = j.escrow;
+    const head = { CAPTURED: 'Paid to the supplier', VOIDED: 'Released back to you, never charged', AUTHORIZED: j.phase === 'EVALUATION' ? 'Held while the delivery is checked' : 'Held while the supplier delivers',
+      AWAITING_BUYER_APPROVAL: 'Waiting for your approval', NOT_APPROVED: 'You did not approve the hold' }[e.status] || e.status;
+    const ids = [`order ${e.orderId}`, e.authorizationId && `authorization ${e.authorizationId}`, e.captureId && `capture ${e.captureId}`].filter(Boolean).join(', ');
+    const html = `<b>${esc(head)}</b>${j.subcontract ? `Hired ${esc(name[j.subcontract.partner].name)} for the labels with its own money. ` : ''}<div class="ids">PayPal ${esc(ids)}</div>`;
+    if (L.res.dataset.html !== html) { L.res.dataset.html = html; L.res.innerHTML = html; }
+  }
+}
+
+function renderCheck(s, name) {
+  const judged = (s.run?.jobs || []).filter((j) => j.verdict);
+  const box = $('checkWrap');
+  if (pickedRun !== s.run?.id) { picked = null; pickedRun = s.run?.id; }
+  // default to the delivery that was checked most recently
+  const lastVerdict = [...s.ledger].reverse().find((m) => m.type === 'VERDICT_APPROVE' || m.type === 'VERDICT_REJECT')?.jobId;
+  const j = judged.find((x) => x.id === picked) || judged.find((x) => x.id === lastVerdict) || judged.at(-1);
+  const key = j ? `${j.id}/${judged.length}/${j.phase}` : '';
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  if (!j) { box.innerHTML = ''; return; }
+  const who = name[j.provider].name, v = j.verdict;
+  const tabs = judged.length > 1 ? `<div class="tabs">${judged.map((x) => `<button type="button" data-pick="${esc(x.id)}" aria-pressed="${x.id === j.id}">${esc(name[x.provider].name)}</button>`).join('')}</div>` : '';
+  box.innerHTML = `<h2>Delivery check</h2>${tabs}<div class="check ${v.approve ? 'good' : 'bad'}"><div>
+      <h3>${v.approve ? `Passed: ${usd(j.agreed.total)} paid to ${esc(who)}` : `Failed: ${usd(j.agreed.total)} released back to you`}</h3>
+      <p class="why">${esc(v.reasoning)} <span class="by">Checked by ${esc(name[j.evaluator].name)}, ${v.source === 'llm' ? 'written by AI' : 'scripted'}.</span></p>
+      <table><thead><tr><th>Checked</th><th>Agreed</th><th>Delivered</th><th>Result</th></tr></thead><tbody>${v.checks.map((c) =>
+        `<tr class="${c.pass ? 'ok' : 'fail'}"><td>${esc(c.name.replace('spec.', '').replace(/_/g, ' '))}</td><td>${esc(c.expected)}</td><td>${esc(c.actual)}</td><td>${c.pass ? 'Match' : 'Mismatch'}</td></tr>`).join('')}</tbody></table>
+    </div><figure><img alt="Carton label the supplier submitted as proof of delivery" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(j.evidence.labelSvg)}">
+      <figcaption>Carton label from ${esc(who)}, sent with this note: &ldquo;${esc(j.evidence.note)}&rdquo;</figcaption></figure></div>`;
+  box.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => { picked = b.dataset.pick; box.dataset.key = ''; renderCheck(state, names(state)); }));
+}
+
+function renderTalk(s, name) {
+  const list = $('talk'), key = `${s.run?.id}/${s.ledger.length}`;
+  if (key === talkKey) return;
+  talkKey = key;
+  $('sayCount').textContent = s.ledger.length ? `${s.ledger.length} messages, hash-chained` : '';
+  if (!s.ledger.length) { list.innerHTML = '<li class="empty">Send the agents and their negotiation appears here, message by message.</li>'; $('chain').textContent = ''; return; }
+  list.innerHTML = s.ledger.map((m) => {
+    const from = name[m.from] || { name: m.from, role: '' }, to = name[m.to] || { name: m.to };
+    const tag = m.source === 'llm' ? 'Written by AI' : m.source === 'scripted' ? 'Scripted' : 'Automatic';
+    return `<li class="${esc(from.role)}"><div class="from">${esc(from.name)}<span>to ${esc(to.name)}</span></div><div><p>${esc(m.content)}</p><span class="tag">Memo ${m.seq}. ${tag}.</span></div></li>`;
+  }).join('');
+  list.scrollTop = list.scrollHeight;
+  $('chain').textContent = `Each message is hashed together with the one before it, so the record cannot be quietly edited. Chain ${s.ledgerValid ? 'verified' : 'BROKEN'}. Latest hash ${s.ledger.at(-1).hash}`;
+}
+
+// ---------- network view
+function tally(id, text, flash = true) {
+  const el = $(id);
+  if (el.textContent === text) return;
+  if (flash && el.dataset.ready && !calm) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+  el.textContent = text; el.dataset.ready = '1';
+}
+function sparkSvg(a) {
+  const n = a.series.length, W = 96, H = 34, x = (i) => (n === 1 ? W - 5 : 3 + (i * (W - 8)) / (n - 1)), y = (v) => H - 4 - v * (H - 8);
+  const line = a.series.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="Trust score after each of ${n} jobs, now ${pts(a.trust)}" data-agent="${esc(a.id)}">`
+    + `<line x1="0" x2="${W}" y1="${H - 4}" y2="${H - 4}" stroke="#c6cbe0" stroke-width="1"/>`
+    + `<polyline points="${line}" fill="none" stroke="#1f1d4d" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
+    + `<circle cx="${x(n - 1).toFixed(1)}" cy="${y(a.series[n - 1]).toFixed(1)}" r="4" fill="#1f1d4d" stroke="#fff" stroke-width="2"/></svg>`;
+}
+function stripSvg(a) {
+  const h = a.history.slice(-10), S = 11, G = 3;
+  return `<svg width="${h.length * (S + G) - G}" height="${S}" role="img" aria-label="Last ${h.length} deliveries">` + h.map((e, i) => {
+    const x = i * (S + G), o = e.sim ? ' opacity=".42"' : '';
+    const tip = `<title>${e.passed ? 'Passed' : 'Rejected'}${e.sim ? ' (seeded or simulated)' : `, your job${e.amount ? ', ' + usd(e.amount) : ''}`}</title>`;
+    return e.passed ? `<rect x="${x}" width="${S}" height="${S}" rx="2" fill="#0b7a5b"${o}>${tip}</rect>`
+      : `<g${o}>${tip}<rect x="${x + 1}" y="1" width="${S - 2}" height="${S - 2}" rx="1.5" fill="#ffb8cc" stroke="#1f1d4d" stroke-width="1.5"/><path d="M${x + 3} 3l5 5M${x + 8} 3l-5 5" stroke="#1f1d4d" stroke-width="1.5"/></g>`;
+  }).join('') + '</svg>';
+}
+const tip = $('tip');
+document.addEventListener('mousemove', (e) => {
+  const svg = e.target.closest?.('.spark');
+  if (!svg || !state) { tip.style.display = 'none'; return; }
+  const a = state.agents.find((x) => x.id === svg.dataset.agent); if (!a) return;
+  const r = svg.getBoundingClientRect(), n = a.series.length;
+  const i = Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left) / r.width) * (n - 1))));
+  tip.textContent = `Job ${i + 1} of ${n}: delivery ${a.history[i].passed ? 'passed' : 'rejected'}. Trust after it: ${pts(a.series[i])}.`;
+  tip.style.display = 'block';
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - 250) + 'px'; tip.style.top = e.clientY + 16 + 'px';
+});
+
+function renderNet(s, name) {
+  const suppliers = s.agents.filter((a) => a.role === 'provider'), evaluators = s.agents.filter((a) => a.role === 'evaluator');
+  const run = s.run, mine = name['buyer-agent'];
+  tally('t-paid', usd(s.totals.settled)); tally('t-back', usd(s.totals.returned)); tally('t-ads', usd0(s.totals.adRevenue));
+  const earnedAll = s.agents.reduce((n, a) => n + (a.role === 'provider' || a.role === 'evaluator' || a.id === 'buyer-agent' ? a.earned || 0 : 0), 0);
+  tally('t-earned', usd0(earnedAll), false);
+  $('r-earn').textContent = `Suppliers earn the sale when a delivery passes. Evaluators earn ${(s.economy.evaluationFee * 100).toFixed(1)}% per check, either verdict. `
+    + `Your buyer agent keeps ${Math.round(s.economy.buyerCommission * 100)}% of what it saves you` + (mine.earned ? `, ${usd(mine.earned)} so far.` : '.');
+  $('totals').innerHTML = `<b>${s.agents.length} agents</b> work for their own account: ${suppliers.length} suppliers, ${evaluators.length} evaluators and ${s.agents.length - suppliers.length - evaluators.length} buyers including yours.`
+    + (run ? ' Rows in yellow quoted on your last order.' : '');
+
+  const box = $('rows'), fresh = rows.size === 0;
+  $('net').classList.toggle('all', showAll);
+  for (const a of suppliers) {
+    if (rows.has(a.id)) continue;
+    const el = document.createElement('article');
+    el.className = 'row';
+    el.innerHTML = '<div class="rk"><b></b><small></small></div><div class="who"><h3></h3><p class="desc"></p><span class="ad" hidden></span><p class="own"></p></div>'
+      + '<div class="rec"><div class="score"><b></b><small></small></div><div class="sp"></div><div class="hist"></div></div><div class="earn"><b></b><small></small></div><div class="inv"></div>';
+    box.append(el);
+    const q = (sel) => el.querySelector(sel);
+    rows.set(a.id, { el, rk: q('.rk b'), rkd: q('.rk small'), h: q('h3'), desc: q('.desc'), ad: q('.ad'), own: q('.own'), score: q('.score b'), sd: q('.score small'),
+      sp: q('.sp'), hist: q('.hist'), earn: q('.earn b'), earnSmall: q('.earn small'), inv: q('.inv'), key: '' });
+  }
+  const invited = new Set(run?.invited || []);
+  for (const a of suppliers) {
+    const R = rows.get(a.id), was = run?.before?.[a.id];
+    R.el.classList.toggle('mine', invited.has(a.id));
+    R.rk.textContent = a.rank;
+    const moved = was ? was.rank - a.rank : 0;
+    R.rkd.textContent = moved ? `${moved > 0 ? '▲' : '▼'} ${Math.abs(moved)}` : ''; R.rkd.className = moved > 0 ? 'up' : '';
+    R.h.textContent = a.name; R.desc.textContent = a.offering;
+    R.ad.hidden = !a.ad; R.ad.textContent = a.ad ? `Bought a sponsored slot, ${usd0(a.ad.bid)} a request` : '';
+    R.own.textContent = a.stance?.note ? `Its own call: ${cut(a.stance.note, 120)}` : '';
+    R.own.hidden = !a.stance?.note;
+    R.score.textContent = pts(a.trust);
+    const dt = was ? pts(a.trust) - pts(was.trust) : 0;
+    R.sd.textContent = dt ? `trust ${dt > 0 ? '+' : '−'}${Math.abs(dt)}` : 'trust'; R.sd.className = dt > 0 ? 'up' : '';
+    const earned = usd0(a.earned);
+    if (R.earn.textContent !== earned) { if (R.earn.textContent && !calm) { R.earn.classList.remove('bump'); void R.earn.offsetWidth; R.earn.classList.add('bump'); } R.earn.textContent = earned; }
+    R.earnSmall.textContent = a.spent ? `earned\n${usd0(a.spent)} spent` : 'earned';
+    const key = `${a.jobs}/${a.passed}/${a.history.length && a.history.at(-1).sim}`;
+    if (key !== R.key) { R.key = key; R.sp.innerHTML = sparkSvg(a); R.hist.innerHTML = stripSvg(a) + `<span>${a.passed} of ${a.jobs} passed</span>`; }
+    const peers = suppliers.filter((x) => x.category === a.category).sort((x, y) => x.rank - y.rank);
+    const place = peers.indexOf(a) + 1, cat = a.category === 'other' ? 'general supplies' : a.category;
+    const html = place <= 4 ? `<b>Invited on merit</b>No. ${place} of ${peers.length} in ${esc(cat)}`
+      : `<b>Outside the top 4</b>No. ${place} of ${peers.length} in ${esc(cat)}. Needs a sponsored slot.`;
+    if (R.inv.dataset.html !== html) { R.inv.dataset.html = html; R.inv.innerHTML = html; }
+  }
+  const order = [...suppliers].sort((a, b) => a.rank - b.rank).map((a) => a.id);
+  const before = new Map([...rows].map(([id, R]) => [id, R.el.getBoundingClientRect().top]));
+  let changed = false;
+  order.forEach((id, i) => { const el = rows.get(id).el; if (box.children[i] !== el) { box.insertBefore(el, box.children[i]); changed = true; } });
+  const VISIBLE = 8;
+  order.forEach((id, i) => rows.get(id).el.classList.toggle('extra', i >= VISIBLE && !invited.has(id)));
+  const hidden = order.filter((id, i) => i >= VISIBLE && !invited.has(id)).length;
+  $('more').hidden = hidden === 0 && !showAll;
+  $('more').textContent = showAll ? `Show the top ${VISIBLE}` : `Show all ${order.length} suppliers`;
+  $('more').setAttribute('aria-expanded', String(showAll));
+  if (changed && !calm && !fresh) {
+    for (const [id, R] of rows) {
+      const now = R.el.getBoundingClientRect();
+      if (!now.height || !before.get(id)) continue;
+      const d = before.get(id) - now.top;
+      if (!d) continue;
+      R.el.style.transition = 'none'; R.el.style.transform = `translateY(${d}px)`; R.el.classList.add('moving');
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      for (const R of rows.values()) {
+        if (!R.el.style.transform) continue;
+        R.el.style.transition = 'transform .8s cubic-bezier(.3, .7, .2, 1)'; R.el.style.transform = '';
+        setTimeout(() => R.el.classList.remove('moving'), 820);
+      }
+    }));
+  }
+
+  $('ambient').innerHTML = (s.ambient.on ? (s.busy ? 'Simulated traffic from other buyers is paused while your order runs.' : '<span class="live"></span>Other buyers are trading. Their jobs are simulated and never touch PayPal.') : 'Simulated traffic from other buyers is off.')
+    + ` <button class="quiet" type="button" id="amb">${s.ambient.on ? 'Turn it off' : 'Turn it on'}</button>`;
+  $('amb').addEventListener('click', () => post('/api/ambient', { on: !s.ambient.on }));
+  const items = [...s.activity].reverse().slice(0, 8), top = items[0]?.ts || 0;
+  $('feed').innerHTML = items.length ? items.map((e, i) => {
+    const b = esc(name[e.buyer]?.name), sup = esc(name[e.supplier]?.name), ev = esc(name[e.evaluator]?.name);
+    const text = e.kind === 'ad' ? `${sup} paid the network ${usd(e.amount)} for a sponsored slot in your order.`
+      : e.kind === 'sub' ? `${b} hired ${sup} for part of a job and paid ${usd(e.amount)} from its own balance.`
+      : e.passed ? `${b} paid ${sup} ${usd(e.amount)} after ${ev} approved the delivery.`
+      : `${b} got ${usd(e.amount)} back. ${ev} <span class="no">rejected</span> the delivery from ${sup}.`;
+    return `<li class="${e.sim ? '' : 'mine'} ${i === 0 && top !== feedTop ? 'new' : ''}">${text} <span class="tag">${e.sim ? 'Simulated.' : e.kind ? 'On the network ledger.' : 'Through PayPal.'}</span></li>`;
+  }).join('') : '<li class="empty">No jobs have finished yet.</li>';
+  feedTop = top;
+  $('evals').innerHTML = evaluators.map((a) => `<li><div><b>${esc(a.name)}</b><br><span class="tag">${esc(a.offering)}</span></div><span>${a.jobs} checked, ${a.jobs - a.passed} rejected<br>Earned <b style="color:var(--ink)">${usd(a.earned)}</b></span></li>`).join('');
+}
+
+new EventSource('/events').onmessage = (ev) => render(JSON.parse(ev.data));
+</script>
+</body>
+</html>
