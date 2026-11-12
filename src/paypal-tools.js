@@ -78,7 +78,8 @@ async function runAgent({ system, user, allowed, maxSteps = 5 }) {
       try { output = asObject(await toolkitTools[u.name].execute(u.input)); }
       catch (err) { ok = false; output = { error: err.message }; }
       calls.push({ tool: u.name, input: u.input, ok, output });
-      console.log(`[paypal-tools] ${u.name} ${ok ? 'ok' : 'failed'} ${JSON.stringify(ok ? Object.keys(output).slice(0, 6) : output).slice(0, 300)}`);
+      const paypalError = output && output.ok === false ? ` PayPal said ${output.status} ${output.code}: ${String(output.message || '').slice(0, 200)}` : '';
+      console.log(`[paypal-tools] ${u.name} ${ok && !paypalError ? 'ok' : 'failed'}${paypalError || ` ${JSON.stringify(Object.keys(output || {}).slice(0, 6))}`}`);
       results.push({ type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(output).slice(0, 6000), is_error: !ok });
     }
     messages.push({ role: 'user', content: results });
